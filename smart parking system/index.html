@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <title>Smart Parking System</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="main">
+
+    <h1>Smart Parking System</h1>
+
+    <div class="parking-area">
+
+        <!-- 3 Already Booked Slots -->
+
+        <div class="slot occupied">
+            🚗
+            <span>P1 Booked</span>
+            <small>Free At 7:30 PM</small>
+        </div>
+
+        <div class="slot occupied">
+            🚗
+            <span>P2 Booked</span>
+            <small>Free At 8:00 PM</small>
+        </div>
+
+        <div class="slot occupied">
+            🚗
+            <span>P3 Booked</span>
+            <small>Free At 9:15 PM</small>
+        </div>
+
+        <!-- Available Slots -->
+
+        <div class="slot available"
+     data-slot="4"
+     onclick="bookSlot(this)">
+     P4
+</div>
+
+        
+        <div class="slot available"
+     data-slot="5"
+     onclick="bookSlot(this)">
+     P5
+</div>
+        <div class="slot available"
+     data-slot="6"
+     onclick="bookSlot(this)">
+     P6
+</div>
+        <div class="slot available"
+     data-slot="7"
+     onclick="bookSlot(this)">
+     P7
+</div>
+        <div class="slot available"
+     data-slot="8"
+     onclick="bookSlot(this)">
+     P8
+</div>
+       <div class="slot available"
+     data-slot="9"
+     onclick="bookSlot(this)">
+     P9
+       </div>
+        <div class="slot available"
+     data-slot="10"
+     onclick="bookSlot(this)">
+     P10
+</div>
+
+        <div class="slot available"
+     data-slot="11"
+     onclick="bookSlot(this)">
+     P11
+</div>
+
+       <div class="slot available"
+     data-slot="12"
+     onclick="bookSlot(this)">
+     P12
+</div>
+    </div>
+
+    <h2 id="availableText">
+        Available Slots : 9
+    </h2>
+
+    <h2 id="bookedText">
+        Booked Slots : 3
+    </h2>
+
+</div>
+
+<!-- PAYMENT POPUP -->
+
+<div id="paymentBox" class="payment-box">
+
+    <div class="payment-content">
+
+        <h2>Scan To Pay</h2>
+
+        <div class="scanner-container">
+
+            <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=ParkingPayment"
+            class="qr-image">
+
+            <div class="scanner-line"></div>
+
+        </div>
+
+        <h3 id="feeText"></h3>
+
+        <button onclick="completePayment()">
+            Payment Done
+        </button>
+
+    </div>
+
+</div>
+
+<!-- NOTIFICATION -->
+
+<div id="notification" class="notification">
+
+    ⚠ 15 Minutes Remaining  
+    Please Empty The Parking Slot
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+
+</html>
