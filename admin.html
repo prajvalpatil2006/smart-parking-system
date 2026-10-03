@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard – SmartPark</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .admin-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    th {
+      padding: 12px 16px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    tr:last-child td { border-bottom: none; }
+    
+    .gate-control-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .barrier-graphic {
+      height: 120px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+    .barrier-arm {
+      width: 160px;
+      height: 12px;
+      background: repeating-linear-gradient(45deg, #ef4444, #ef4444 15px, #ffffff 15px, #ffffff 30px);
+      border-radius: 6px;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: left center;
+    }
+    .barrier-arm.open {
+      transform: rotate(-75deg);
+    }
+    
+    @media (max-width: 1024px) {
+      .admin-grid { grid-template-columns: repeat(2, 1fr); }
+      .gate-control-panel { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .admin-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">
+    <span class="logo-icon">🅿</span>
+    SmartPark Admin
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="parking.html">Live Map</a></li>
+    <li><a href="booking.html">Book Slot</a></li>
+    <li><a href="admin.html" class="active">Admin</a></li>
+  </ul>
+  <div class="nav-actions">
+    <button class="btn btn-danger btn-sm" onclick="triggerSystemReset()">Reset System</button>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+  <div class="section-sm">
+
+    <div class="flex-between" style="margin-bottom: 30px; flex-wrap:wrap; gap:16px;">
+      <div>
+        <h1 style="font-size: 1.8rem;">Centralized Admin Dashboard</h1>
+        <p style="color: var(--text-secondary); font-size: 0.88rem;">Monitor live slot occupancy, gate barriers, system telemetry, and booking revenues</p>
+      </div>
+      <div class="flex gap-12">
+        <button class="btn btn-ghost btn-sm" onclick="toggleSensorSimulation()">
+          <span id="simBtnText">⚡ Pause IoT Simulation</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Admin KPI Stats -->
+    <div class="admin-grid" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="admin-card">
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:8px;">TOTAL REVENUE (NET)</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--green-light);" id="adminRevenue">₹0</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Excludes refunded amounts</div>
+      </div>
+
+      <div class="admin-card">
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:8px;">ACTIVE RESERVATIONS</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--accent-light);" id="adminActiveBookings">0</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Currently confirmed slots</div>
+      </div>
+
+      <div class="admin-card">
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:8px;">TOTAL CANCELLATIONS</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--red-light);" id="adminCancellations">0</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Released back to pool</div>
+      </div>
+
+      <div class="admin-card">
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:8px;">TOTAL REFUNDED</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit',sans-serif; color:var(--yellow);" id="adminRefunds">₹0</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Credited back to user wallets</div>
+      </div>
+    </div>
+
+    <!-- Cancellation Policy Config Card -->
+    <div class="admin-card" style="margin-bottom: 30px;">
+      <div class="flex-between" style="margin-bottom:12px; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h3>⚙️ Configurable Cancellation & Refund Policy</h3>
+          <p style="font-size:0.8rem; color:var(--text-secondary);">Manage system-wide cancellation cutoffs and refund percentages</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveAdminCancelPolicy()">💾 Save Policy</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px;">
+        <div class="input-group">
+          <label style="font-size:0.8rem;">Standard Cancellation Refund Rate (%)</label>
+          <input type="number" id="policyPartialPct" value="50" step="5" min="0" max="100" style="padding:8px 12px; font-size:0.85rem;" />
+        </div>
+        <div class="input-group">
+          <label style="font-size:0.8rem;">Cancellation Notice Buffer (Hours)</label>
+          <input type="number" id="policyFullHours" value="0.0" step="0.5" min="0" style="padding:8px 12px; font-size:0.85rem;" />
+        </div>
+        <div class="input-group">
+          <label style="font-size:0.8rem;">Allow Cancellation After Start Time</label>
+          <select id="policyAfterStart" style="padding:8px 12px; font-size:0.85rem;">
+            <option value="false">❌ No (Strict Policy)</option>
+            <option value="true">✅ Yes (Admin Override Mode)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gate Control & Hardware Simulator Panel -->
+    <div style="margin-bottom:24px;">
+      <div class="flex-between" style="margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3>🚧 Automatic Gate Control & IoT Simulator</h3>
+          <span style="font-size:0.8rem; color:var(--text-secondary);">ESP32 Servo PWM, Ultrasonic Under-Barrier Safety Sensors & QR/RFID Scanner</span>
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-primary btn-sm" onclick="openGateTerminalModal('entry')">📷 Scan Entry QR / RFID</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEsp32FirmwareModal()">📟 ESP32 Firmware & Pinout</button>
+        </div>
+      </div>
+
+      <div class="gate-control-panel">
+        <!-- Entry Gate -->
+        <div class="admin-card">
+          <div class="flex-between">
+            <div class="flex gap-8" style="align-items:center;">
+              <span class="gate-led red" id="entryGateLed"></span>
+              <h4>Barrier Gate 01 (Entry)</h4>
+            </div>
+            <div class="flex gap-8" style="align-items:center;">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Servo: <strong id="entryServoAngle">0°</strong></span>
+              <span class="badge badge-red" id="entryGateBadge">CLOSED</span>
+            </div>
+          </div>
+
+          <div class="barrier-graphic">
+            <div style="position: absolute; left: 35px; bottom: 18px; font-size: 2.2rem;">🛑</div>
+            <div class="barrier-arm closed" id="entryBarrierArm"></div>
+            <div style="position: absolute; right: 20px; bottom: 12px; font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">
+              PWM PIN 18 • HC-SR04 PIN 5/19
+            </div>
+          </div>
+
+          <div style="margin-top:12px; background:var(--bg-secondary); padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border);">
+            <div class="flex-between" style="font-size:0.75rem; margin-bottom:4px;">
+              <span style="color:var(--text-secondary);">Safety Sensor (Under Barrier):</span>
+              <span class="badge badge-green" id="entrySensorBadge" style="font-size:0.68rem;">BEAM CLEAR (190cm)</span>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-muted);" id="entrySensorDesc">
+              ✅ Barrier zone clear. Safe to close.
+            </div>
+          </div>
+
+          <div class="flex gap-8" style="margin-top: 14px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" style="flex:1; justify-content:center;" onclick="openGateTerminalModal('entry')">📷 Terminal Scan</button>
+            <button class="btn btn-success btn-sm" style="padding:6px 12px;" onclick="triggerGateOpenSequence('entry')">Open</button>
+            <button class="btn btn-danger btn-sm" style="padding:6px 12px;" onclick="triggerGateCloseSequence('entry')">Close</button>
+          </div>
+        </div>
+
+        <!-- Exit Gate -->
+        <div class="admin-card">
+          <div class="flex-between">
+            <div class="flex gap-8" style="align-items:center;">
+              <span class="gate-led red" id="exitGateLed"></span>
+              <h4>Barrier Gate 02 (Exit)</h4>
+            </div>
+            <div class="flex gap-8" style="align-items:center;">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Servo: <strong id="exitServoAngle">0°</strong></span>
+              <span class="badge badge-red" id="exitGateBadge">CLOSED</span>
+            </div>
+          </div>
+
+          <div class="barrier-graphic">
+            <div style="position: absolute; left: 35px; bottom: 18px; font-size: 2.2rem;">🛑</div>
+            <div class="barrier-arm closed" id="exitBarrierArm"></div>
+            <div style="position: absolute; right: 20px; bottom: 12px; font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">
+              PWM PIN 23 • HC-SR04 PIN 32/33
+            </div>
+          </div>
+
+          <div style="margin-top:12px; background:var(--bg-secondary); padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border);">
+            <div class="flex-between" style="font-size:0.75rem; margin-bottom:4px;">
+              <span style="color:var(--text-secondary);">Safety Sensor (Under Barrier):</span>
+              <span class="badge badge-green" id="exitSensorBadge" style="font-size:0.68rem;">BEAM CLEAR (190cm)</span>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-muted);" id="exitSensorDesc">
+              ✅ Barrier zone clear. Safe to close.
+            </div>
+          </div>
+
+          <div class="flex gap-8" style="margin-top: 14px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" style="flex:1; justify-content:center;" onclick="openGateTerminalModal('exit')">📷 Terminal Scan</button>
+            <button class="btn btn-success btn-sm" style="padding:6px 12px;" onclick="triggerGateOpenSequence('exit')">Open</button>
+            <button class="btn btn-danger btn-sm" style="padding:6px 12px;" onclick="triggerGateCloseSequence('exit')">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Booking Logs Table & API Inspector Grid -->
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:30px;">
+      <div class="table-container">
+        <div class="flex-between" style="margin-bottom: 16px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h3>Bookings & Cancellation Management</h3>
+            <span style="font-size:0.75rem; color:var(--text-secondary);">Audit log with instant refund & status controls</span>
+          </div>
+          <div class="flex gap-8">
+            <select id="adminStatusFilter" onchange="renderAdminTable()" style="width:auto; padding:6px 12px; font-size:0.8rem;">
+              <option value="all">All Statuses</option>
+              <option value="CONFIRMED">Confirmed Only</option>
+              <option value="CANCELLED">Cancelled Only</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="renderAdminTable()">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Slot</th>
+              <th>Date / Entry</th>
+              <th>Paid</th>
+              <th>Status</th>
+              <th>Refund</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody">
+            <!-- Filled by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Live API Console & Telemetry Inspector -->
+      <div class="admin-card" style="display:flex; flex-direction:column; gap:16px;">
+        <div class="flex-between">
+          <h3>🖥️ REST API Inspector</h3>
+          <span class="badge badge-purple" id="apiCountBadge">0 Calls</span>
+        </div>
+        <p style="font-size:0.78rem; color:var(--text-secondary);">Live backend HTTP network log feed (/api/v1/*)</p>
+        <div id="apiConsoleFeed" style="background:#020617; border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; font-family:monospace; font-size:0.75rem; color:#a7f3d0; height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+          <!-- Filled dynamically -->
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="flex-between">
+          <h4>📡 Telemetry Feed</h4>
+          <span class="badge badge-green">MQTT Active</span>
+        </div>
+        <div id="adminIotFeed" style="background:#020617; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; font-family:monospace; font-size:0.75rem; color:#38bdf8; height:120px; overflow-y:auto;">
+          <!-- Filled dynamically -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  function loadAdminCancelPolicy() {
+    if (document.getElementById('policyFullHours')) {
+      document.getElementById('policyFullHours').value = cancellationPolicy.fullRefundHours;
+      document.getElementById('policyPartialPct').value = cancellationPolicy.partialRefundPct;
+      document.getElementById('policyAfterStart').value = cancellationPolicy.allowAfterStart ? 'true' : 'false';
+    }
+  }
+
+  function saveAdminCancelPolicy() {
+    const policy = {
+      fullRefundHours: parseFloat(document.getElementById('policyFullHours').value) || 0.0,
+      partialRefundPct: parseInt(document.getElementById('policyPartialPct').value) || 50,
+      refundPct: parseInt(document.getElementById('policyPartialPct').value) || 50,
+      allowAfterStart: document.getElementById('policyAfterStart').value === 'true'
+    };
+    saveCancellationPolicy(policy);
+    showToast('Cancellation & Refund policy updated to 50% refund rate!', 'success');
+  }
+
+  function renderAdminTable() {
+    const tbody = document.getElementById('adminTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const allBookings = JSON.parse(localStorage.getItem('sp_bookings') || '[]');
+    const filter = document.getElementById('adminStatusFilter') ? document.getElementById('adminStatusFilter').value : 'all';
+
+    let totalRev = 0;
+    let totalCancelled = 0;
+    let totalRefunded = 0;
+    let totalActive = 0;
+
+    allBookings.forEach(b => {
+      const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+      if (isCancelled) {
+        totalCancelled++;
+        totalRefunded += (b.refundAmount || 0);
+        totalRev += (b.amount - (b.refundAmount || 0));
+      } else {
+        totalActive++;
+        totalRev += b.amount;
+      }
+    });
+
+    let displayBookings = allBookings;
+    if (filter !== 'all') {
+      displayBookings = allBookings.filter(b => {
+        const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+        return filter === 'CANCELLED' ? isCancelled : !isCancelled;
+      });
+    }
+
+    if (displayBookings.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:30px;">No matching booking logs found.</td></tr>`;
+    } else {
+      displayBookings.forEach(b => {
+        const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+        const isExpired = (b.bookingStatus === 'EXPIRED' || b.status === 'EXPIRED');
+        const isConfirmed = (!b.bookingStatus || b.bookingStatus === 'CONFIRMED') && !isCancelled && !isExpired;
+
+        let statusBadge = `<span class="badge badge-green">Confirmed</span>`;
+        if (isCancelled) statusBadge = `<span class="badge badge-red">Cancelled</span>`;
+        else if (isExpired) statusBadge = `<span class="badge badge-yellow">Expired</span>`;
+
+        const refundText = isCancelled
+          ? `<span style="color:var(--green-light); font-weight:bold;">₹${b.refundAmount || 0}</span> <span style="font-size:0.75rem; color:var(--text-muted);">(${b.refundStatus || 'Refunded'})</span>`
+          : `<span style="color:var(--text-muted);">-</span>`;
+
+        const startFormatted = new Date(b.entryTime || b.startTime).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+        const endFormatted = new Date(b.endTime).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-family:monospace; font-weight:700; color:var(--accent-light);">${b.id}</td>
+          <td>
+            <div style="font-weight:600;">${b.driverName}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${b.vehicleNo}</div>
+          </td>
+          <td><span class="badge badge-purple">${b.slotId}</span></td>
+          <td>
+            <div>${new Date(b.entryTime).toLocaleDateString('en-IN')}</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary);">${startFormatted} - ${endFormatted}</div>
+          </td>
+          <td style="color:var(--green-light); font-weight:700;">₹${b.amount}</td>
+          <td>${statusBadge}</td>
+          <td>${refundText}</td>
+          <td>
+            <div class="flex gap-4">
+              <button class="btn btn-ghost btn-sm" style="padding:4px 6px;" onclick='exportBookingReceiptPDF(${JSON.stringify(b)})' title="Export PDF">
+                📥
+              </button>
+              ${isConfirmed ? `
+                <button class="btn btn-warning btn-sm" style="padding:4px 6px; background:rgba(245,158,11,0.2); color:var(--yellow);" onclick="promptExtendBooking('${b.id}')" title="Extend Parking Duration">
+                  ⏳
+                </button>
+                <button class="btn btn-danger btn-sm" style="padding:4px 6px;" onclick="adminCancelSlot('${b.id}')" title="Admin Cancel & Refund">
+                  🚫
+                </button>
+                <button class="btn btn-ghost btn-sm" style="padding:4px 6px; font-size:0.7rem; color:var(--accent-light);" onclick="simulateBookingExpiry('${b.id}')" title="Simulate 15-Min Expiry Alert">
+                  ⚡ 15m
+                </button>
+              ` : ''}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('adminRevenue').textContent = `₹${totalRev}`;
+    document.getElementById('adminActiveBookings').textContent = totalActive;
+    document.getElementById('adminCancellations').textContent = totalCancelled;
+    document.getElementById('adminRefunds').textContent = `₹${totalRefunded}`;
+  }
+
+  async function adminCancelSlot(bookingId) {
+    if (confirm(`Admin Override: Cancel booking ${bookingId} and release slot immediately?`)) {
+      const res = await MockAPI.cancelBooking(bookingId, true);
+      if (res.success) {
+        showToast(`Booking ${bookingId} cancelled! Slot ${res.slotId} released. Refund: ₹${res.refundAmount}`, 'success');
+        renderAdminTable();
+      } else {
+        showToast(res.error, 'error');
+      }
+    }
+  }
+
+  function renderApiLogs() {
+    const feed = document.getElementById('apiConsoleFeed');
+    const badge = document.getElementById('apiCountBadge');
+    if (!feed) return;
+    badge.textContent = `${apiLogs.length} Calls`;
+    
+    feed.innerHTML = apiLogs.map(l => {
+      const statusColor = l.status < 300 ? '#34d399' : '#f87171';
+      return `
+        <div style="border-bottom:1px dashed rgba(255,255,255,0.1); padding-bottom:4px;">
+          <span style="color:${statusColor}; font-weight:bold;">[${l.method} ${l.status}]</span>
+          <span style="color:#e2e8f0;">${l.endpoint}</span>
+          <span style="color:#94a3b8; font-size:0.7rem;">(${l.latencyMs}ms at ${l.timestamp})</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderIotLogFeed() {
+    const feed = document.getElementById('adminIotFeed');
+    if (!feed) return;
+    feed.innerHTML = iotLogs.slice(0, 10).map(log => `<div>${log}</div>`).join('');
+  }
+
+  function controlGate(gateType, action) {
+    const arm = document.getElementById(`${gateType}BarrierArm`);
+    const badge = document.getElementById(`${gateType}GateBadge`);
+
+    if (action === 'open') {
+      arm.classList.add('open');
+      badge.textContent = 'OPEN';
+      badge.className = 'badge badge-green';
+      showToast(`${gateType.toUpperCase()} Barrier Gate Opened!`, 'success');
+      logApiCall('POST', `/api/v1/gates/${gateType}/open`, 200, { state: 'OPEN' });
+    } else {
+      arm.classList.remove('open');
+      badge.textContent = 'CLOSED';
+      badge.className = 'badge badge-red';
+      showToast(`${gateType.toUpperCase()} Barrier Gate Closed!`, 'info');
+      logApiCall('POST', `/api/v1/gates/${gateType}/close`, 200, { state: 'CLOSED' });
+    }
+  }
+
+  function toggleSensorSimulation() {
+    const active = toggleIotSim();
+    document.getElementById('simBtnText').textContent = active ? '⚡ Pause IoT Simulation' : '⚡ Resume IoT Simulation';
+    showToast(active ? 'IoT Simulation resumed' : 'IoT Simulation paused', 'info');
+  }
+
+  function triggerSystemReset() {
+    if (confirm('Are you sure you want to reset all booking records and clear slot reservations?')) {
+      localStorage.removeItem('sp_bookings');
+      parkingData = generateParkingData();
+      renderAdminTable();
+      renderApiLogs();
+      renderIotLogFeed();
+      showToast('System reset complete. All slots restored.', 'info');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadAdminCancelPolicy();
+    renderAdminTable();
+    renderApiLogs();
+    renderIotLogFeed();
+    MockAPI.getSlots();
+  });
+</script>
+</body>
+</html>

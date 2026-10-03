@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Parking Map – SmartPark</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .map-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .parking-layout {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      gap: 24px;
+    }
+    .floor-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .floor-tab {
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+    .floor-tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+    
+    .zone-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .zone-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
+    }
+    
+    .slot-card {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 110px;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .slot-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+    }
+    
+    .slot-card.free {
+      border-color: rgba(16,185,129,0.3);
+      background: rgba(16,185,129,0.04);
+    }
+    .slot-card.free::before { background: var(--green); }
+    .slot-card.free:hover {
+      border-color: var(--green);
+      box-shadow: 0 0 20px var(--green-glow);
+      transform: translateY(-4px);
+    }
+    
+    .slot-card.occupied {
+      border-color: rgba(239,68,68,0.3);
+      background: rgba(239,68,68,0.04);
+      cursor: not-allowed;
+    }
+    .slot-card.occupied::before { background: var(--red); }
+    
+    .slot-card.reserved {
+      border-color: rgba(245,158,11,0.3);
+      background: rgba(245,158,11,0.04);
+    }
+    .slot-card.reserved::before { background: var(--yellow); }
+    
+    .slot-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+    .slot-icon {
+      font-size: 1.8rem;
+      margin: 6px 0;
+    }
+    .slot-type-badge {
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-glass);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    
+    .sidebar-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+    }
+    
+    .summary-stat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-stat:last-child { border-bottom: none; }
+
+    @media (max-width: 1024px) {
+      .parking-layout { grid-template-columns: 1fr; }
+      .slots-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .slots-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">
+    <span class="logo-icon">🅿</span>
+    SmartPark
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="parking.html" class="active">Live Map</a></li>
+    <li><a href="booking.html">Book Slot</a></li>
+    <li><a href="admin.html">Admin</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="booking.html" class="btn btn-primary btn-sm">Book a Slot</a>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+  <div class="section-sm">
+    
+    <div class="map-header">
+      <div>
+        <h1 style="font-size: 2rem; margin-bottom: 6px;">Live Parking Slot Map</h1>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">Real-time IoT sensor updates for all 48 parking slots</p>
+      </div>
+
+      <div class="map-controls">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot free"></div> Available (<span id="countFree">0</span>)</div>
+          <div class="legend-item"><div class="legend-dot occupied"></div> Occupied (<span id="countOccupied">0</span>)</div>
+          <div class="legend-item"><div class="legend-dot reserved"></div> Reserved (<span id="countReserved">0</span>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor-tabs">
+      <button class="floor-tab active" onclick="switchFloor('all', this)">All Zones</button>
+      <button class="floor-tab" onclick="switchFloor('Ground Floor', this)">Ground Floor (Zone A & B)</button>
+      <button class="floor-tab" onclick="switchFloor('First Floor', this)">1st Floor (Zone C & D)</button>
+    </div>
+
+    <div class="parking-layout">
+      <!-- Main Parking Grid Area -->
+      <div id="zonesContainer">
+        <!-- Filled dynamically -->
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar-panel">
+        <div class="summary-card">
+          <h3 style="margin-bottom: 16px;">Slot Summary</h3>
+          <div class="summary-stat">
+            <span style="color: var(--text-secondary);">Total Slots</span>
+            <span style="font-weight: 700;" id="statTotal">48</span>
+          </div>
+          <div class="summary-stat">
+            <span style="color: var(--green-light);">Available</span>
+            <span style="font-weight: 700; color: var(--green-light);" id="statFree">0</span>
+          </div>
+          <div class="summary-stat">
+            <span style="color: var(--red-light);">Occupied</span>
+            <span style="font-weight: 700; color: var(--red-light);" id="statOccupied">0</span>
+          </div>
+          <div class="summary-stat">
+            <span style="color: var(--yellow);">Reserved</span>
+            <span style="font-weight: 700; color: var(--yellow);" id="statReserved">0</span>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 8px;">
+              <span style="color: var(--text-secondary);">Occupancy Rate</span>
+              <span id="occupancyPct" style="font-weight: 700;">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="occupancyFill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="flex-between" style="margin-bottom: 12px;">
+            <h3>⚡ Live IoT Telemetry Log</h3>
+            <span class="badge badge-green">● Connected</span>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Real-time MQTT sensor events from 48 ESP32 ultrasonic nodes.
+          </p>
+          <div id="iotTerminalFeed" style="background:#020617; border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; font-family:monospace; font-size:0.75rem; color:#38bdf8; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+            <!-- Filled dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Slot Details Modal -->
+<div class="modal-overlay" id="slotModal" style="display: none;">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modalSlotTitle">Slot A01 Details</div>
+      <button class="modal-close" onclick="closeModal('slotModal')">✕</button>
+    </div>
+    <div id="modalSlotBody">
+      <!-- Dynamic details -->
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  let currentFloorFilter = 'all';
+
+  function updatePageSlotData() {
+    renderMap();
+    renderIotLogFeed();
+  }
+
+  function renderIotLogFeed() {
+    const feed = document.getElementById('iotTerminalFeed');
+    if (!feed) return;
+    feed.innerHTML = iotLogs.slice(0, 10).map(log => `<div>${log}</div>`).join('');
+  }
+
+  function renderMap() {
+    const container = document.getElementById('zonesContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const zones = ['A', 'B', 'C', 'D'];
+    let freeCount = 0, occCount = 0, resCount = 0;
+
+    zones.forEach(z => {
+      const zoneSlots = parkingData.filter(s => s.zone === z);
+      if (zoneSlots.length === 0) return;
+
+      const floorName = zoneSlots[0].floor;
+      if (currentFloorFilter !== 'all' && !floorName.toLowerCase().includes(currentFloorFilter.toLowerCase()) && !currentFloorFilter.toLowerCase().includes(floorName.toLowerCase())) return;
+
+      const zoneCard = document.createElement('div');
+      zoneCard.className = 'zone-section animate-fade-up';
+
+      const zoneHeader = document.createElement('div');
+      zoneHeader.className = 'zone-title';
+      zoneHeader.innerHTML = `
+        <div>
+          <strong>Zone ${z}</strong> <span style="font-size:0.8rem; color:var(--text-muted); margin-left:8px;">(${floorName})</span>
+        </div>
+        <span class="badge badge-purple">${zoneSlots.filter(s=>s.status==='free').length} Free</span>
+      `;
+      zoneCard.appendChild(zoneHeader);
+
+      const grid = document.createElement('div');
+      grid.className = 'slots-grid';
+
+      zoneSlots.forEach(slot => {
+        if (slot.status === 'free') freeCount++;
+        else if (slot.status === 'occupied') occCount++;
+        else if (slot.status === 'reserved') resCount++;
+
+        const card = document.createElement('div');
+        card.className = `slot-card ${slot.status}`;
+        card.onclick = () => selectSlotModal(slot);
+
+        let icon = '🚗';
+        if (slot.status === 'free') icon = '🅿️';
+        if (slot.type === 'ev') icon = '⚡';
+        if (slot.type === 'handicap') icon = '♿';
+
+        card.innerHTML = `
+          <div class="slot-number">${slot.id}</div>
+          <div class="slot-icon">${icon}</div>
+          <div class="slot-type-badge">${slot.status.toUpperCase()}</div>
+        `;
+        grid.appendChild(card);
+      });
+
+      zoneCard.appendChild(grid);
+      container.appendChild(zoneCard);
+    });
+
+    // Update Counts & Dynamic Pricing Info
+    document.getElementById('countFree').textContent = parkingData.filter(s=>s.status==='free').length;
+    document.getElementById('countOccupied').textContent = parkingData.filter(s=>s.status==='occupied').length;
+    document.getElementById('countReserved').textContent = parkingData.filter(s=>s.status==='reserved').length;
+
+    document.getElementById('statTotal').textContent = parkingData.length;
+    document.getElementById('statFree').textContent = parkingData.filter(s=>s.status==='free').length;
+    document.getElementById('statOccupied').textContent = parkingData.filter(s=>s.status==='occupied').length;
+    document.getElementById('statReserved').textContent = parkingData.filter(s=>s.status==='reserved').length;
+
+    const occRate = Math.round(((parkingData.length - parkingData.filter(s=>s.status==='free').length) / parkingData.length) * 100);
+    document.getElementById('occupancyPct').textContent = occRate + '%';
+    document.getElementById('occupancyFill').style.width = occRate + '%';
+  }
+
+  function switchFloor(floor, btnEl) {
+    currentFloorFilter = floor;
+    document.querySelectorAll('.floor-tab').forEach(t => t.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    renderMap();
+  }
+
+  function selectSlotModal(slot) {
+    document.getElementById('modalSlotTitle').textContent = `Slot ${slot.id} Details`;
+    const body = document.getElementById('modalSlotBody');
+
+    const rateInfo = getDynamicRateInfo(slot.id);
+
+    let statusBadge = `<span class="badge badge-green">Available</span>`;
+    if (slot.status === 'occupied') statusBadge = `<span class="badge badge-red">Occupied</span>`;
+    if (slot.status === 'reserved') statusBadge = `<span class="badge badge-yellow">Reserved</span>`;
+
+    body.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <span style="font-size:1.1rem; font-weight:700;">Status</span>
+        ${statusBadge}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem; margin-bottom:24px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-secondary);">Zone & Floor</span>
+          <span>Zone ${slot.zone} (${slot.floor})</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-secondary);">Slot Type</span>
+          <span style="text-transform:uppercase; font-weight:600;">${slot.type}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-secondary);">Dynamic Hourly Rate</span>
+          <span style="color:var(--green-light); font-weight:700;">₹${rateInfo.hourlyRate}/hr</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-secondary);">Ultrasonic Distance</span>
+          <span style="font-family:monospace; font-weight:600;">${slot.distanceCm} cm</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-secondary);">Sensor Signal (RSSI)</span>
+          <span style="font-family:monospace;">${slot.rssiDbm} dBm (${slot.batteryLevel}% Battery)</span>
+        </div>
+      </div>
+      
+      <div style="display:flex; gap:10px; margin-bottom:12px;">
+        <button class="btn btn-ghost btn-sm" style="flex:1; justify-content:center;" onclick="toggleSlotSensorManual('${slot.id}')">
+          ⚙️ Manual Toggle Sensor (IoT Test)
+        </button>
+      </div>
+
+      ${
+        slot.status === 'free'
+          ? `<a href="booking.html?slot=${slot.id}" class="btn btn-primary" style="width:100%; justify-content:center;">Book Slot ${slot.id} Now</a>`
+          : `<button class="btn btn-ghost" disabled style="width:100%; justify-content:center; opacity:0.6;">Slot Not Available</button>`
+      }
+    `;
+
+    openModal('slotModal');
+  }
+
+  async function toggleSlotSensorManual(slotId) {
+    const res = await MockAPI.toggleSlotSensor(slotId);
+    if (res.status === 200) {
+      showToast(`Slot ${slotId} sensor manually updated to ${res.slot.status.toUpperCase()}`, 'success');
+      renderMap();
+      renderIotLogFeed();
+      closeModal('slotModal');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMap();
+    renderIotLogFeed();
+  });
+</script>
+</body>
+</html>

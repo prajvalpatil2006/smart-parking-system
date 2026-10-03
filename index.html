@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartPark – All-In-One Intelligent Parking Hub</title>
+  <meta name="description" content="SmartPark IoT-powered parking system: Live Map, Reservation, QR PDF Exporter, Wallet & REST API Admin." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="index.css" />
+  <style>
+    /* SPA Tab Navigation */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.4s ease; }
+    .nav-links a { cursor: pointer; }
+    
+    /* Integrated Map Grid Styles */
+    .slots-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+    .slot-card {
+      background: var(--bg-secondary); border: 2px solid var(--border); border-radius: var(--radius-md);
+      padding: 16px 12px; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      min-height: 110px; cursor: pointer; transition: var(--transition); position: relative; overflow: hidden;
+    }
+    .slot-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+    .slot-card.free { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.04); }
+    .slot-card.free::before { background: var(--green); }
+    .slot-card.free:hover { border-color: var(--green); box-shadow: 0 0 20px var(--green-glow); transform: translateY(-4px); }
+    .slot-card.occupied { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04); }
+    .slot-card.occupied::before { background: var(--red); }
+    .slot-card.reserved { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.04); }
+    .slot-card.reserved::before { background: var(--yellow); }
+    .slot-number { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 800; }
+    .slot-icon { font-size: 1.6rem; margin: 4px 0; }
+    .slot-type-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-glass); color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    
+    /* Gate arm animation */
+    .barrier-graphic { height: 110px; background: var(--bg-secondary); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; margin-top: 12px; }
+    .barrier-arm { width: 140px; height: 10px; background: repeating-linear-gradient(45deg, #ef4444, #ef4444 15px, #ffffff 15px, #ffffff 30px); border-radius: 6px; transition: transform 0.6s ease; transform-origin: left center; }
+    .barrier-arm.open { transform: rotate(-75deg); }
+
+    @media (max-width: 1024px) { .slots-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 640px) { .slots-grid { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+
+<!-- ─── Toast Notification ──────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ─── Navbar ──────────────────────────────── -->
+<nav class="navbar">
+  <a onclick="showTab('home')" class="nav-logo" style="cursor:pointer;">
+    <span class="logo-icon">🅿</span>
+    SmartPark Hub
+  </a>
+  <ul class="nav-links">
+    <li><a id="nav-home" onclick="showTab('home')" class="active">🏠 Overview</a></li>
+    <li><a id="nav-map" onclick="showTab('map')">🗺️ Live Map</a></li>
+    <li><a id="nav-booking" onclick="showTab('booking')">📅 Book Slot</a></li>
+    <li><a id="nav-admin" onclick="showTab('admin')">🛡️ Admin & API</a></li>
+  </ul>
+  <div class="nav-actions">
+    <button onclick="showTab('booking')" class="btn btn-primary btn-sm">⚡ 1-Click Book</button>
+  </div>
+</nav>
+
+<!-- ─── Unified Page Content Wrapper ─────────── -->
+<div class="page-wrapper">
+
+  <!-- ============================================================ -->
+  <!-- TAB 1: HOME & OVERVIEW                                      -->
+  <!-- ============================================================ -->
+  <div id="tab-home" class="tab-content active">
+    <!-- HERO SECTION -->
+    <section class="hero">
+      <div class="hero-bg">
+        <div class="hero-orb orb-1"></div>
+        <div class="hero-orb orb-2"></div>
+        <div class="hero-orb orb-3"></div>
+        <div class="hero-grid"></div>
+      </div>
+      <div class="hero-content">
+        <div class="hero-badge animate-fade-up">
+          <span class="pulse-dot"></span>
+          <span>Unified Smart Parking Portal — 48 ESP32 Nodes Monitored</span>
+        </div>
+        <h1 class="hero-title animate-fade-up" style="animation-delay:0.1s">
+          Smart Parking System<br/>
+          <span class="gradient-text">All-In-One Solution</span>
+        </h1>
+        <p class="hero-subtitle animate-fade-up" style="animation-delay:0.2s">
+          Real-time IoT slot monitoring, dynamic demand pricing, digital wallet payment, canvas QR gate pass, and REST API admin inspection in one place.
+        </p>
+        <div class="hero-actions animate-fade-up" style="animation-delay:0.3s">
+          <button onclick="showTab('map')" class="btn btn-primary btn-lg">
+            <span>🗺️</span> Explore Live Map
+          </button>
+          <button onclick="showTab('booking')" class="btn btn-ghost btn-lg">
+            <span>📅</span> Reserve a Slot
+          </button>
+          <button onclick="showTab('admin')" class="btn btn-ghost btn-lg">
+            <span>🖥️</span> Admin API Console
+          </button>
+        </div>
+        <div class="hero-stats animate-fade-up" style="animation-delay:0.4s">
+          <div class="hero-stat">
+            <span class="stat-value" id="heroFree">36</span>
+            <span class="stat-label">Free Slots</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="hero-stat">
+            <span class="stat-value" id="heroOccupied">12</span>
+            <span class="stat-label">Occupied</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="hero-stat">
+            <span class="stat-value">₹20</span>
+            <span class="stat-label">Base Rate</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="hero-stat">
+            <span class="stat-value">24/7</span>
+            <span class="stat-label">IoT Telemetry</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual animate-fade-up" style="animation-delay:0.3s">
+        <div class="hero-card-wrapper animate-float">
+          <div class="hero-parking-card">
+            <div class="hpc-header">
+              <span>🅿 Zone A Telemetry</span>
+              <span class="badge badge-green">● Live MQTT</span>
+            </div>
+            <div class="mini-slot-grid" id="heroSlotGrid">
+              <!-- Filled by JS -->
+            </div>
+            <div class="hpc-footer">
+              <div>
+                <div class="hpc-stat-val" id="hpcFree">9</div>
+                <div class="hpc-stat-lbl">Available</div>
+              </div>
+              <div>
+                <div class="hpc-stat-val red" id="hpcOccupied">3</div>
+                <div class="hpc-stat-lbl">Occupied</div>
+              </div>
+              <div>
+                <div class="hpc-stat-val yellow">0</div>
+                <div class="hpc-stat-lbl">Reserved</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS STRIP -->
+    <section class="stats-strip">
+      <div class="stats-strip-inner">
+        <div class="strip-stat">
+          <div class="strip-icon">🚗</div>
+          <div><div class="strip-val">48</div><div class="strip-lbl">Total Slots</div></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <div class="strip-icon">⚡</div>
+          <div><div class="strip-val">Dynamic</div><div class="strip-lbl">Pricing Engine</div></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <div class="strip-icon">👛</div>
+          <div><div class="strip-val">Wallet</div><div class="strip-lbl">Cashless Checkout</div></div>
+        </div>
+        <div class="strip-divider"></div>
+        <div class="strip-stat">
+          <div class="strip-icon">📥</div>
+          <div><div class="strip-val">PDF</div><div class="strip-lbl">Receipt Exporter</div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TAB 2: LIVE MAP & SENSOR TELEMETRY                          -->
+  <!-- ============================================================ -->
+  <div id="tab-map" class="tab-content">
+    <div class="section-sm">
+      <div class="flex-between" style="margin-bottom: 24px; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h1 style="font-size: 1.8rem;">Live IoT Parking Map</h1>
+          <p style="color: var(--text-secondary); font-size: 0.88rem;">Real-time ultrasonic sensor feeds for all 48 parking slots</p>
+        </div>
+        <div class="flex gap-12">
+          <button class="floor-tab active" onclick="switchTabFloor('all', this)">All Zones</button>
+          <button class="floor-tab" onclick="switchTabFloor('Ground Floor', this)">Ground (Zone A & B)</button>
+          <button class="floor-tab" onclick="switchTabFloor('First Floor', this)">1st Floor (Zone C & D)</button>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 3fr 1fr; gap:24px;">
+        <!-- Slots Grid Container -->
+        <div id="unifiedSlotsContainer">
+          <!-- Filled dynamically -->
+        </div>
+
+        <!-- Sidebar telemetry -->
+        <div class="flex-col gap-20">
+          <div class="card">
+            <h3 style="margin-bottom:12px;">📊 Occupancy Summary</h3>
+            <div style="display:flex; flex-direction:column; gap:10px; font-size:0.88rem;">
+              <div class="flex-between"><span>Free Slots:</span><strong style="color:var(--green-light);" id="uFree">0</strong></div>
+              <div class="flex-between"><span>Occupied:</span><strong style="color:var(--red-light);" id="uOccupied">0</strong></div>
+              <div class="flex-between"><span>Reserved:</span><strong style="color:var(--yellow);" id="uReserved">0</strong></div>
+            </div>
+            <div class="divider"></div>
+            <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:6px;">Occupancy Rate: <strong id="uRate">0%</strong></div>
+            <div class="progress-bar"><div class="progress-fill" id="uProgressFill" style="width:0%;"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="flex-between" style="margin-bottom:8px;">
+              <h3>📡 Live MQTT Feed</h3>
+              <span class="badge badge-green">● Streaming</span>
+            </div>
+            <div id="uIotLogFeed" style="background:#020617; border:1px solid var(--border); border-radius:8px; padding:10px; font-family:monospace; font-size:0.75rem; color:#38bdf8; height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TAB 3: BOOK SLOT & QR PDF TICKET                             -->
+  <!-- ============================================================ -->
+  <div id="tab-booking" class="tab-content">
+    <div class="section-sm">
+      <div class="section-header" style="text-align: left; margin-bottom: 24px;">
+        <h1 class="section-title">Reserve a <span class="gradient-text">Parking Slot</span></h1>
+        <p class="section-subtitle" style="margin:0;">Select your slot, calculate dynamic hourly rates, and generate your printable QR pass.</p>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:30px;">
+        <!-- Form -->
+        <div class="card">
+          <h3 style="font-size: 1.2rem; margin-bottom: 20px;">Driver & Booking Form</h3>
+          <form onsubmit="handleTabBookingSubmit(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+              <div class="input-group">
+                <label>Driver Name *</label>
+                <input type="text" id="uDriverName" required placeholder="e.g. Alex Rivera" />
+              </div>
+              <div class="input-group">
+                <label>Vehicle Plate No *</label>
+                <input type="text" id="uVehicleNo" required placeholder="e.g. KA 01 AB 4321" style="text-transform:uppercase;" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+              <div class="input-group">
+                <label>Select Available Slot *</label>
+                <select id="uSlotSelect" required onchange="calcTabPrice()"></select>
+              </div>
+              <div class="input-group">
+                <label>Duration (Hours) *</label>
+                <select id="uDurationHours" required onchange="calcTabPrice()">
+                  <option value="1">1 Hour</option>
+                  <option value="2" selected>2 Hours</option>
+                  <option value="3">3 Hours</option>
+                  <option value="4">4 Hours</option>
+                  <option value="8">8 Hours (Full Day)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+              <div class="input-group">
+                <label>Expected Entry *</label>
+                <input type="datetime-local" id="uEntryTime" required onchange="calcTabPrice()" />
+              </div>
+              <div class="input-group">
+                <label>Mobile Contact *</label>
+                <input type="tel" id="uPhone" required placeholder="+91 98765 43210" />
+              </div>
+            </div>
+
+            <label style="font-size:0.85rem; font-weight:500; color:var(--text-secondary);">Select Payment Method</label>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:8px 0 16px 0;">
+              <div class="pm-card active u-pm" onclick="selectTabPM('UPI', this)">📱 UPI / QR</div>
+              <div class="pm-card u-pm" onclick="selectTabPM('CARD', this)">💳 Card</div>
+              <div class="pm-card u-pm" onclick="selectTabPM('WALLET', this)">👛 Wallet</div>
+            </div>
+
+            <!-- Dynamic Payment Method View Box -->
+            <div id="uPaymentDetailsBox" style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-bottom:20px; text-align:center;">
+              <!-- UPI QR View -->
+              <div id="uUpiPaymentView">
+                <div style="font-size:0.8rem; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">SCAN WITH ANY UPI APP TO PAY</div>
+                <div style="background:#fff; border-radius:12px; padding:10px; display:inline-block; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+                  <canvas id="uPaymentCanvasQR" width="130" height="130"></canvas>
+                </div>
+                <div style="font-family:monospace; font-size:0.85rem; font-weight:700; color:var(--accent-light); margin-top:8px;">UPI ID: smartpark@okicici</div>
+                <div style="display:flex; justify-content:center; gap:8px; margin-top:8px; font-size:0.75rem; color:var(--text-muted);">
+                  <span>🟢 GPay</span> • <span>🟣 PhonePe</span> • <span>🔵 Paytm</span>
+                </div>
+              </div>
+
+              <!-- Card View -->
+              <div id="uCardPaymentView" style="display:none; text-align:left;">
+                <div class="input-group" style="margin-bottom:10px;">
+                  <label style="font-size:0.75rem;">Card Number</label>
+                  <input type="text" placeholder="4532 •••• •••• 8892" style="padding:8px 12px; font-size:0.85rem;" />
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div class="input-group">
+                    <label style="font-size:0.75rem;">Expiry</label>
+                    <input type="text" placeholder="12/28" style="padding:8px 12px; font-size:0.85rem;" />
+                  </div>
+                  <div class="input-group">
+                    <label style="font-size:0.75rem;">CVV</label>
+                    <input type="password" placeholder="•••" style="padding:8px 12px; font-size:0.85rem;" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Wallet View -->
+              <div id="uWalletPaymentView" style="display:none; text-align:left;">
+                <div class="flex-between" style="margin-bottom:6px;">
+                  <span style="font-size:0.85rem; color:var(--text-secondary);">Wallet Balance:</span>
+                  <strong style="color:var(--green-light);" id="uPayWalletBal">₹850</strong>
+                </div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">1-Click instant deduction from your SmartPark wallet balance.</div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width:100%; justify-content:center;">
+              Pay & Confirm Reservation
+            </button>
+          </form>
+        </div>
+
+        <!-- Summary & Ticket -->
+        <div class="flex-col gap-20">
+          <div class="card" style="background:linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.08));">
+            <div class="flex-between" style="margin-bottom:8px;">
+              <span style="font-size:0.8rem; font-weight:700; color:var(--text-secondary);">DYNAMIC DEMAND RATE</span>
+              <span class="badge badge-green" id="uSurgeBadge">STANDARD RATE</span>
+            </div>
+            <div style="font-size:1.1rem; font-weight:700; margin-bottom:4px;" id="uSurgeText">Occupancy Rate: 0%</div>
+            <div style="font-size:0.78rem; color:var(--text-secondary);">Rates auto-adjust based on live slot demand & EV type</div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:16px;">Price Summary</h3>
+            <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem;">
+              <div class="flex-between"><span style="color:var(--text-secondary);">Slot</span><span id="uSumSlot" style="font-weight:700;">A01</span></div>
+              <div class="flex-between"><span style="color:var(--text-secondary);">Hourly Rate</span><span id="uSumRate">₹20/hr</span></div>
+              <div class="flex-between"><span style="color:var(--text-secondary);">Duration</span><span id="uSumDur">2 Hours</span></div>
+              <div class="flex-between"><span style="color:var(--text-secondary);">GST & Platform Fee</span><span>₹5</span></div>
+              <div class="divider"></div>
+              <div class="flex-between" style="font-size:1.2rem;"><strong>Total Payable</strong><strong id="uSumTotal" style="color:var(--green-light);">₹45</strong></div>
+            </div>
+          </div>
+
+          <!-- Pass Ticket Result -->
+          <div id="uTicketCard" style="display:none;" class="ticket-container">
+            <span class="badge badge-green" style="margin-bottom:10px;">✅ Booking Confirmed</span>
+            <h3>SmartPark Digital Gate Pass</h3>
+            <div style="background:#fff; padding:10px; border-radius:12px; display:inline-block; margin:14px 0;">
+              <canvas id="uCanvasQR" width="130" height="130"></canvas>
+            </div>
+            <div style="font-family:monospace; font-weight:700; color:var(--accent-light);" id="uTicketId">SP-123456</div>
+            <div style="font-size:0.8rem; text-align:left; background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; margin:12px 0 16px 0;">
+              <div><strong>Vehicle:</strong> <span id="uTktVeh"></span></div>
+              <div><strong>Slot:</strong> <span id="uTktSlot"></span></div>
+              <div><strong>Status:</strong> <span style="color:var(--green-light); font-weight:700;">PAID & VERIFIED</span></div>
+            </div>
+            <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;" onclick="printUTicket()">
+              📥 Download / Print PDF Ticket
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TAB 4: ADMIN DASHBOARD & REST API CONSOLE                    -->
+  <!-- ============================================================ -->
+  <div id="tab-admin" class="tab-content">
+    <div class="section-sm">
+      <div class="flex-between" style="margin-bottom: 24px; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h1 style="font-size: 1.8rem;">Centralized Admin Dashboard</h1>
+          <p style="color: var(--text-secondary); font-size: 0.88rem;">Monitor barrier gate servos, live telemetry, and REST HTTP network requests</p>
+        </div>
+        <div class="flex gap-12">
+          <button class="btn btn-ghost btn-sm" onclick="toggleIotSim()">⚡ Toggle IoT Sim</button>
+          <button class="btn btn-danger btn-sm" onclick="triggerSystemReset()">Reset System</button>
+        </div>
+      </div>
+
+      <!-- Admin KPIs -->
+      <div class="grid-4" style="margin-bottom:24px;">
+        <div class="card">
+          <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:4px;">TOTAL REVENUE (NET)</div>
+          <div style="font-size:1.8rem; font-weight:800; color:var(--green-light);" id="uAdminRev">₹0</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:4px;">ACTIVE BOOKINGS</div>
+          <div style="font-size:1.8rem; font-weight:800; color:var(--accent-light);" id="uAdminBookings">0</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:4px;">CANCELLATIONS</div>
+          <div style="font-size:1.8rem; font-weight:800; color:var(--red-light);" id="uAdminCancellations">0</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:4px;">TOTAL REFUNDED</div>
+          <div style="font-size:1.8rem; font-weight:800; color:var(--yellow);" id="uAdminRefunds">₹0</div>
+        </div>
+      </div>
+
+      <!-- Barrier Gate Controls & Hardware Simulator -->
+      <div style="margin-bottom:24px;">
+        <div class="flex-between" style="margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <h3 style="font-size:1.1rem;">🚧 Automatic Gate Controls & IoT Hardware Simulator</h3>
+          <div class="flex gap-8">
+            <button class="btn btn-primary btn-sm" onclick="openGateTerminalModal('entry')">📷 Scan Gate Pass / RFID</button>
+            <button class="btn btn-ghost btn-sm" onclick="openEsp32FirmwareModal()">📟 ESP32 Firmware</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Entry Gate -->
+          <div class="card">
+            <div class="flex-between">
+              <div class="flex gap-8" style="align-items:center;">
+                <span class="gate-led red" id="entryGateLed"></span>
+                <h4>Barrier Gate 01 (Entry)</h4>
+              </div>
+              <div class="flex gap-8" style="align-items:center;">
+                <span style="font-size:0.75rem; color:var(--text-muted);">Servo: <strong id="entryServoAngle">0°</strong></span>
+                <span class="badge badge-red" id="entryGateBadge">CLOSED</span>
+              </div>
+            </div>
+
+            <div class="barrier-graphic">
+              <div style="position: absolute; left: 35px; bottom: 18px; font-size: 2rem;">🛑</div>
+              <div class="barrier-arm closed" id="entryBarrierArm"></div>
+              <div style="position: absolute; right: 16px; bottom: 10px; font-size: 0.7rem; color: var(--text-muted); font-family: monospace;">
+                PWM PIN 18 • HC-SR04 PIN 5/19
+              </div>
+            </div>
+
+            <div style="margin-top:12px; background:var(--bg-secondary); padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border);">
+              <div class="flex-between" style="font-size:0.75rem; margin-bottom:4px;">
+                <span style="color:var(--text-secondary);">Safety Sensor (Under Barrier):</span>
+                <span class="badge badge-green" id="entrySensorBadge" style="font-size:0.68rem;">BEAM CLEAR (190cm)</span>
+              </div>
+              <div style="font-size:0.72rem; color:var(--text-muted);" id="entrySensorDesc">
+                ✅ Barrier zone clear. Safe to close.
+              </div>
+            </div>
+
+            <div class="flex gap-8" style="margin-top:12px; flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" style="flex:1; justify-content:center;" onclick="openGateTerminalModal('entry')">📷 Scan QR</button>
+              <button class="btn btn-success btn-sm" style="padding:6px 12px;" onclick="triggerGateOpenSequence('entry')">Open</button>
+              <button class="btn btn-danger btn-sm" style="padding:6px 12px;" onclick="triggerGateCloseSequence('entry')">Close</button>
+            </div>
+          </div>
+
+          <!-- Exit Gate -->
+          <div class="card">
+            <div class="flex-between">
+              <div class="flex gap-8" style="align-items:center;">
+                <span class="gate-led red" id="exitGateLed"></span>
+                <h4>Barrier Gate 02 (Exit)</h4>
+              </div>
+              <div class="flex gap-8" style="align-items:center;">
+                <span style="font-size:0.75rem; color:var(--text-muted);">Servo: <strong id="exitServoAngle">0°</strong></span>
+                <span class="badge badge-red" id="exitGateBadge">CLOSED</span>
+              </div>
+            </div>
+
+            <div class="barrier-graphic">
+              <div style="position: absolute; left: 35px; bottom: 18px; font-size: 2rem;">🛑</div>
+              <div class="barrier-arm closed" id="exitBarrierArm"></div>
+              <div style="position: absolute; right: 16px; bottom: 10px; font-size: 0.7rem; color: var(--text-muted); font-family: monospace;">
+                PWM PIN 23 • HC-SR04 PIN 32/33
+              </div>
+            </div>
+
+            <div style="margin-top:12px; background:var(--bg-secondary); padding:8px 12px; border-radius:var(--radius-md); border:1px solid var(--border);">
+              <div class="flex-between" style="font-size:0.75rem; margin-bottom:4px;">
+                <span style="color:var(--text-secondary);">Safety Sensor (Under Barrier):</span>
+                <span class="badge badge-green" id="exitSensorBadge" style="font-size:0.68rem;">BEAM CLEAR (190cm)</span>
+              </div>
+              <div style="font-size:0.72rem; color:var(--text-muted);" id="exitSensorDesc">
+                ✅ Barrier zone clear. Safe to close.
+              </div>
+            </div>
+
+            <div class="flex gap-8" style="margin-top:12px; flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" style="flex:1; justify-content:center;" onclick="openGateTerminalModal('exit')">📷 Scan QR</button>
+              <button class="btn btn-success btn-sm" style="padding:6px 12px;" onclick="triggerGateOpenSequence('exit')">Open</button>
+              <button class="btn btn-danger btn-sm" style="padding:6px 12px;" onclick="triggerGateCloseSequence('exit')">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table & API Console -->
+      <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+        <div class="card" style="overflow-x:auto;">
+          <div class="flex-between" style="margin-bottom:12px;">
+            <h3>Bookings & Cancellation Audit Log</h3>
+            <select id="uAdminFilter" onchange="renderTabAdmin()" style="width:auto; padding:4px 8px; font-size:0.75rem;">
+              <option value="all">All Statuses</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:0.82rem;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid var(--border); color:var(--text-secondary);">
+                <th style="padding:8px 4px;">ID</th><th>User</th><th>Slot</th><th>Paid</th><th>Status</th><th>Refund</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="uAdminTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="flex-between">
+            <h3>🖥️ REST API Inspector</h3>
+            <span class="badge badge-purple" id="uApiBadge">0 Calls</span>
+          </div>
+          <div id="uApiConsoleFeed" style="background:#020617; border:1px solid var(--border); border-radius:8px; padding:10px; font-family:monospace; font-size:0.75rem; color:#a7f3d0; height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="nav-logo" style="margin-bottom:12px;">
+          <span class="logo-icon">🅿</span> SmartPark Unified Hub
+        </div>
+        <p>IoT Smart Parking Solution — Live Map, Dynamic Rates, QR Pass & REST API.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Navigation</h4>
+        <a onclick="showTab('home')" style="cursor:pointer;">Overview</a>
+        <a onclick="showTab('map')" style="cursor:pointer;">Live Map</a>
+        <a onclick="showTab('booking')" style="cursor:pointer;">Book Slot</a>
+        <a onclick="showTab('admin')" style="cursor:pointer;">Admin API</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 SmartPark — Unified Localhost Portal</span>
+    </div>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  let activeTab = 'home';
+  let tabFloorFilter = 'all';
+  let tabPM = 'UPI';
+  let lastTabBooking = null;
+
+  function showTab(tabId) {
+    activeTab = tabId;
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+    
+    const target = document.getElementById(`tab-${tabId}`);
+    const navBtn = document.getElementById(`nav-${tabId}`);
+    if (target) target.classList.add('active');
+    if (navBtn) navBtn.classList.add('active');
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (tabId === 'map') renderTabMap();
+    if (tabId === 'booking') populateTabSlots();
+    if (tabId === 'admin') renderTabAdmin();
+  }
+
+  // MAP TAB LOGIC
+  function switchTabFloor(flr, btn) {
+    tabFloorFilter = flr;
+    document.querySelectorAll('.floor-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderTabMap();
+  }
+
+  function renderTabMap() {
+    const container = document.getElementById('unifiedSlotsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const zones = ['A', 'B', 'C', 'D'];
+    zones.forEach(z => {
+      const zoneSlots = parkingData.filter(s => s.zone === z);
+      const floorName = zoneSlots[0].floor;
+      if (tabFloorFilter !== 'all' && !floorName.toLowerCase().includes(tabFloorFilter.toLowerCase()) && !tabFloorFilter.toLowerCase().includes(floorName.toLowerCase())) return;
+
+      const zoneCard = document.createElement('div');
+      zoneCard.style.cssText = 'background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:20px; margin-bottom:20px;';
+      
+      const header = document.createElement('div');
+      header.className = 'flex-between';
+      header.style.marginBottom = '14px';
+      header.innerHTML = `<strong>Zone ${z} (${zoneSlots[0].floor})</strong> <span class="badge badge-purple">${zoneSlots.filter(s=>s.status==='free').length} Free</span>`;
+      zoneCard.appendChild(header);
+
+      const grid = document.createElement('div');
+      grid.className = 'slots-grid';
+
+      zoneSlots.forEach(slot => {
+        const card = document.createElement('div');
+        card.className = `slot-card ${slot.status}`;
+        card.onclick = () => {
+          if (slot.status === 'free') {
+            showTab('booking');
+            document.getElementById('uSlotSelect').value = slot.id;
+            calcTabPrice();
+          } else {
+            showToast(`Slot ${slot.id} is currently ${slot.status.toUpperCase()}!`, 'info');
+          }
+        };
+
+        let icon = slot.status === 'free' ? '🅿️' : '🚗';
+        if (slot.type === 'ev') icon = '⚡';
+        if (slot.type === 'handicap') icon = '♿';
+
+        card.innerHTML = `
+          <div class="slot-number">${slot.id}</div>
+          <div class="slot-icon">${icon}</div>
+          <div class="slot-type-badge">${slot.status.toUpperCase()}</div>
+        `;
+        grid.appendChild(card);
+      });
+
+      zoneCard.appendChild(grid);
+      container.appendChild(zoneCard);
+    });
+
+    // Sidebar
+    const freeC = parkingData.filter(s => s.status==='free').length;
+    const occC = parkingData.filter(s => s.status==='occupied').length;
+    const resC = parkingData.filter(s => s.status==='reserved').length;
+
+    document.getElementById('uFree').textContent = freeC;
+    document.getElementById('uOccupied').textContent = occC;
+    document.getElementById('uReserved').textContent = resC;
+
+    const rate = Math.round(((48 - freeC) / 48) * 100);
+    document.getElementById('uRate').textContent = rate + '%';
+    document.getElementById('uProgressFill').style.width = rate + '%';
+
+    // Log Feed
+    const feed = document.getElementById('uIotLogFeed');
+    if (feed) feed.innerHTML = iotLogs.slice(0, 8).map(l => `<div>${l}</div>`).join('');
+  }
+
+  // BOOKING TAB LOGIC
+  function populateTabSlots() {
+    const select = document.getElementById('uSlotSelect');
+    if (!select) return;
+    select.innerHTML = '';
+
+    const user = getCurrentUser();
+    if (user) {
+      if (user.name) document.getElementById('uDriverName').value = user.name;
+      if (user.plate) document.getElementById('uVehicleNo').value = user.plate;
+    }
+
+    const free = parkingData.filter(s => s.status === 'free');
+    if (free.length === 0) {
+      select.innerHTML = '<option value="">No Free Slots Available</option>';
+      return;
+    }
+
+    free.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `Slot ${s.id} (${s.floor} - ${s.type.toUpperCase()})`;
+      select.appendChild(opt);
+    });
+
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('uEntryTime').value = now.toISOString().slice(0, 16);
+
+    calcTabPrice();
+  }
+
+  function selectTabPM(pm, el) {
+    tabPM = pm;
+    document.querySelectorAll('.u-pm').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    const upiView = document.getElementById('uUpiPaymentView');
+    const cardView = document.getElementById('uCardPaymentView');
+    const walletView = document.getElementById('uWalletPaymentView');
+
+    if (upiView) upiView.style.display = pm === 'UPI' ? 'block' : 'none';
+    if (cardView) cardView.style.display = pm === 'CARD' ? 'block' : 'none';
+    if (walletView) walletView.style.display = pm === 'WALLET' ? 'block' : 'none';
+
+    if (pm === 'WALLET') {
+      const user = getCurrentUser();
+      const bal = user ? user.walletBalance || 0 : 0;
+      const balEl = document.getElementById('uPayWalletBal');
+      if (balEl) balEl.textContent = `₹${bal}`;
+      showToast(`Selected SmartPark Wallet (Balance: ₹${bal})`, 'info');
+    } else if (pm === 'CARD') {
+      showToast('Selected Credit / Debit Card Payment', 'info');
+    } else if (pm === 'UPI') {
+      showToast('Selected UPI / QR Payment Method', 'info');
+      calcTabPrice();
+    }
+  }
+
+  function calcTabPrice() {
+    const slotEl = document.getElementById('uSlotSelect');
+    if (!slotEl) return;
+    const slotId = slotEl.value;
+    const hours = parseInt(document.getElementById('uDurationHours').value) || 1;
+    const info = getDynamicRateInfo(slotId);
+
+    document.getElementById('uSurgeBadge').className = `badge ${info.surgeBadgeClass}`;
+    document.getElementById('uSurgeBadge').textContent = info.surgeLabel;
+    document.getElementById('uSurgeText').textContent = `System Occupancy: ${info.occupancyRatio}%`;
+
+    document.getElementById('uSumSlot').textContent = slotId || 'N/A';
+    document.getElementById('uSumRate').textContent = `₹${info.hourlyRate}/hr`;
+    document.getElementById('uSumDur').textContent = `${hours} Hour${hours>1?'s':''}`;
+    
+    const total = (hours * info.hourlyRate) + 5;
+    document.getElementById('uSumTotal').textContent = `₹${total}`;
+
+    const canvas = document.getElementById('uPaymentCanvasQR');
+    if (canvas && slotId) {
+      renderCanvasQR('uPaymentCanvasQR', `upi://pay?pa=smartpark@okicici&pn=SmartPark&am=${total}&cu=INR`);
+    }
+  }
+
+  async function handleTabBookingSubmit(e) {
+    e.preventDefault();
+    const driver = document.getElementById('uDriverName').value;
+    const vehicle = document.getElementById('uVehicleNo').value.toUpperCase();
+    const slotId = document.getElementById('uSlotSelect').value;
+    const hours = parseInt(document.getElementById('uDurationHours').value);
+    const entry = document.getElementById('uEntryTime').value;
+    const phone = document.getElementById('uPhone').value;
+
+    const info = getDynamicRateInfo(slotId);
+    const totalAmount = (hours * info.hourlyRate) + 5;
+    const bookingId = generateBookingId();
+
+    const payload = {
+      id: bookingId, driverName: driver, vehicleNo: vehicle, slotId, hours,
+      entryTime: entry, phone, amount: totalAmount, paymentMethod: tabPM,
+      timestamp: new Date().toISOString(), status: 'CONFIRMED'
+    };
+
+    const res = await MockAPI.createBooking(payload);
+    if (!res.success) {
+      showToast(res.error, 'error');
+      return;
+    }
+
+    lastTabBooking = payload;
+    showToast(`Booking ${bookingId} confirmed! ₹${totalAmount} paid via ${tabPM}`, 'success');
+
+    document.getElementById('uTicketCard').style.display = 'block';
+    document.getElementById('uTicketId').textContent = bookingId;
+    document.getElementById('uTktVeh').textContent = vehicle;
+    document.getElementById('uTktSlot').textContent = slotId;
+
+    renderCanvasQR('uCanvasQR', generateQRData(bookingId));
+    populateTabSlots();
+  }
+
+  function printUTicket() {
+    if (lastTabBooking) exportBookingReceiptPDF(lastTabBooking);
+  }
+
+  // ADMIN TAB LOGIC
+  function renderTabAdmin() {
+    const tbody = document.getElementById('uAdminTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const allBookings = JSON.parse(localStorage.getItem('sp_bookings') || '[]');
+    const filter = document.getElementById('uAdminFilter') ? document.getElementById('uAdminFilter').value : 'all';
+
+    let totalRev = 0;
+    let totalCancelled = 0;
+    let totalRefunded = 0;
+    let totalActive = 0;
+
+    allBookings.forEach(b => {
+      const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+      if (isCancelled) {
+        totalCancelled++;
+        totalRefunded += (b.refundAmount || 0);
+        totalRev += (b.amount - (b.refundAmount || 0));
+      } else {
+        totalActive++;
+        totalRev += b.amount;
+      }
+    });
+
+    let displayBookings = allBookings;
+    if (filter !== 'all') {
+      displayBookings = allBookings.filter(b => {
+        const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+        const isExpired = (b.bookingStatus === 'EXPIRED' || b.status === 'EXPIRED');
+        if (filter === 'CANCELLED') return isCancelled;
+        if (filter === 'EXPIRED') return isExpired;
+        return !isCancelled && !isExpired;
+      });
+    }
+
+    if (displayBookings.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="padding:20px; text-align:center; color:var(--text-muted);">No matching bookings found.</td></tr>`;
+    } else {
+      displayBookings.forEach(b => {
+        const isCancelled = (b.bookingStatus === 'CANCELLED' || b.status === 'CANCELLED');
+        const isExpired = (b.bookingStatus === 'EXPIRED' || b.status === 'EXPIRED');
+        const isConfirmed = (!b.bookingStatus || b.bookingStatus === 'CONFIRMED') && !isCancelled && !isExpired;
+
+        let statusBadge = `<span class="badge badge-green" style="font-size:0.7rem;">Confirmed</span>`;
+        if (isCancelled) statusBadge = `<span class="badge badge-red" style="font-size:0.7rem;">Cancelled</span>`;
+        else if (isExpired) statusBadge = `<span class="badge badge-yellow" style="font-size:0.7rem;">Expired</span>`;
+
+        const refundText = isCancelled
+          ? `<span style="color:var(--green-light); font-weight:bold;">₹${b.refundAmount || 0}</span>`
+          : `<span style="color:var(--text-muted);">-</span>`;
+
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.innerHTML = `
+          <td style="font-family:monospace; color:var(--accent-light); padding:8px 4px;">${b.id}</td>
+          <td>
+            <div style="font-weight:600;">${b.driverName}</div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">${b.vehicleNo}</div>
+          </td>
+          <td><span class="badge badge-purple">${b.slotId}</span></td>
+          <td style="color:var(--green-light); font-weight:700;">₹${b.amount}</td>
+          <td>${statusBadge}</td>
+          <td>${refundText}</td>
+          <td>
+            <div class="flex gap-4">
+              <button class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick='exportBookingReceiptPDF(${JSON.stringify(b)})' title="Export PDF">📥</button>
+              ${isConfirmed ? `
+                <button class="btn btn-warning btn-sm" style="padding:2px 6px; background:rgba(245,158,11,0.2); color:var(--yellow);" onclick="promptExtendBooking('${b.id}')" title="Extend Slot Duration">⏳</button>
+                <button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="adminCancelSlotTab('${b.id}')" title="Cancel & Refund">🚫</button>
+                <button class="btn btn-ghost btn-sm" style="padding:2px 6px; font-size:0.7rem; color:var(--accent-light);" onclick="simulateBookingExpiry('${b.id}')" title="Test 15-Minute Expiry Alert">⚡ 15m</button>
+              ` : ''}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('uAdminRev').textContent = `₹${totalRev}`;
+    document.getElementById('uAdminBookings').textContent = totalActive;
+    document.getElementById('uAdminCancellations').textContent = totalCancelled;
+    document.getElementById('uAdminRefunds').textContent = `₹${totalRefunded}`;
+
+    renderTabApiLogs();
+  }
+
+  async function adminCancelSlotTab(bookingId) {
+    if (confirm(`Admin Override: Cancel booking ${bookingId} and release slot immediately?`)) {
+      const res = await MockAPI.cancelBooking(bookingId, true);
+      if (res.success) {
+        showToast(`Booking ${bookingId} cancelled! Slot ${res.slotId} released. Refund: ₹${res.refundAmount}`, 'success');
+        renderTabAdmin();
+      } else {
+        showToast(res.error, 'error');
+      }
+    }
+  }
+
+  function renderTabApiLogs() {
+    const feed = document.getElementById('uApiConsoleFeed');
+    const badge = document.getElementById('uApiBadge');
+    if (!feed) return;
+    badge.textContent = `${apiLogs.length} Calls`;
+
+    feed.innerHTML = apiLogs.map(l => {
+      const col = l.status < 300 ? '#34d399' : '#f87171';
+      return `<div style="border-bottom:1px dashed rgba(255,255,255,0.1); padding-bottom:2px;"><span style="color:${col};">[${l.method} ${l.status}]</span> ${l.endpoint} <span style="color:#64748b;">(${l.latencyMs}ms)</span></div>`;
+    }).join('');
+  }
+
+  function controlUGate(type, action) {
+    const arm = document.getElementById(`u${type === 'entry' ? 'Entry' : 'Exit'}Arm`);
+    const badge = document.getElementById(`u${type === 'entry' ? 'Entry' : 'Exit'}Badge`);
+
+    if (action === 'open') {
+      arm.classList.add('open');
+      badge.textContent = 'OPEN';
+      badge.className = 'badge badge-green';
+      showToast(`${type.toUpperCase()} Gate Opened!`, 'success');
+      logApiCall('POST', `/api/v1/gates/${type}/open`, 200, { state: 'OPEN' });
+    } else {
+      arm.classList.remove('open');
+      badge.textContent = 'CLOSED';
+      badge.className = 'badge badge-red';
+      showToast(`${type.toUpperCase()} Gate Closed!`, 'info');
+      logApiCall('POST', `/api/v1/gates/${type}/close`, 200, { state: 'CLOSED' });
+    }
+  }
+
+  // Hero mini-grid
+  const heroGrid = document.getElementById('heroSlotGrid');
+  const heroSlots = [0,1,0,0, 1,0,0,1, 0,0,1,0];
+  function buildHeroGrid() {
+    if (!heroGrid) return;
+    heroGrid.innerHTML = '';
+    heroSlots.forEach((s,i) => {
+      const d = document.createElement('div');
+      d.className = 'mini-slot ' + (s===1?'occ':'free');
+      heroGrid.appendChild(d);
+    });
+    document.getElementById('hpcFree').textContent = heroSlots.filter(s=>s===0).length;
+    document.getElementById('hpcOccupied').textContent = heroSlots.filter(s=>s===1).length;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    buildHeroGrid();
+    renderTabMap();
+    populateTabSlots();
+    renderTabAdmin();
+    MockAPI.getSlots();
+  });
+</script>
+</body>
+</html>
