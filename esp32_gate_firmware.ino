@@ -34,9 +34,9 @@
 #define PIN_RFID_RST        2
 
 // ─── CONFIGURATION CONSTANTS ─────────────────────────
-const char* WIFI_SSID       = "SmartPark_IoT_Network";
-const char* WIFI_PASS       = "SmartParkSecret2026";
-const char* API_BASE_URL    = "http://192.168.1.100:8080/api/v1";
+const char* WIFI_SSID       = "YOUR_WIFI_SSID";
+const char* WIFI_PASS       = "YOUR_WIFI_PASSWORD";
+const char* API_BASE_URL    = "http://YOUR_SERVER_IP:8080/api";
 
 const int SERVO_POS_CLOSED  = 0;    // 0 Degrees (Barrier Down / Closed)
 const int SERVO_POS_OPEN    = 90;   // 90 Degrees (Barrier Up / Open)
